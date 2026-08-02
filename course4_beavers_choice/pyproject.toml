@@ -1,0 +1,23 @@
+[project]
+name = "course4-beavers-choice"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Christian Rijke", email = "hello@christianrijke.de" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "openai==1.76.0",
+    "pandas==2.2.3",
+    "python-dotenv==1.1.0",
+    "sqlalchemy==2.0.40",
+    "typing==3.7.4.3",
+]
+
+[project.scripts]
+course4-beavers-choice = "course4_beavers_choice:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"

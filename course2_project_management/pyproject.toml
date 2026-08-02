@@ -1,0 +1,21 @@
+[project]
+name = "course2-project-management"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Christian Rijke", email = "hello@christianrijke.de" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "openai==1.78.1",
+    "pandas==2.2.3",
+    "python-dotenv==1.1.0",
+]
+
+[project.scripts]
+course2-project-management = "course2_project_management:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
