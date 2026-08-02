@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import time
-import dotenv
+from dotenv import load_dotenv
 import ast
 from sqlalchemy.sql import text
 from datetime import datetime, timedelta
@@ -181,12 +181,15 @@ def init_database(db_engine: Engine, seed: int = 137) -> Engine:
 
         # Unpack metadata fields (job_type, order_size, event_type) if present
         if "request_metadata" in quotes_df.columns:
-            quotes_df["request_metadata"] = quotes_df["request_metadata"].apply(
+            metadata = quotes_df["request_metadata"].apply(
                 lambda x: ast.literal_eval(x) if isinstance(x, str) else x
             )
-            quotes_df["job_type"] = quotes_df["request_metadata"].apply(lambda x: x.get("job_type", ""))
-            quotes_df["order_size"] = quotes_df["request_metadata"].apply(lambda x: x.get("order_size", ""))
-            quotes_df["event_type"] = quotes_df["request_metadata"].apply(lambda x: x.get("event_type", ""))
+            quotes_df = quotes_df.assign(
+                request_metadata=metadata,
+                job_type=metadata.apply(lambda x: x.get("job_type", "")),
+                order_size=metadata.apply(lambda x: x.get("order_size", "")),
+                event_type=metadata.apply(lambda x: x.get("event_type", "")),
+            )
 
         # Retain only relevant columns
         quotes_df = quotes_df[[
@@ -449,7 +452,6 @@ def get_cash_balance(as_of_date: Union[str, datetime]) -> float:
         print(f"Error getting cash balance: {e}")
         return 0.0
 
-
 def generate_financial_report(as_of_date: Union[str, datetime]) -> Dict:
     """
     Generate a complete financial report for the company as of a specific date.
@@ -519,7 +521,6 @@ def generate_financial_report(as_of_date: Union[str, datetime]) -> Dict:
         "inventory_summary": inventory_summary,
         "top_selling_products": top_selling_products,
     }
-
 
 def search_quote_history(search_terms: List[str], limit: int = 5) -> List[Dict]:
     """
@@ -591,6 +592,15 @@ def search_quote_history(search_terms: List[str], limit: int = 5) -> List[Dict]:
 
 # Set up and load your env parameters and instantiate your model.
 
+load_dotenv()
+
+# create_transaction
+# get_all_inventory
+# get_stock_level
+# get_supplier_delivery_date
+# get_cash_balance
+# generate_financial_report
+# search_quote_history
 
 """Set up tools for your agents to use, these should be methods that combine the database functions above
  and apply criteria to them to ensure that the flow of the system is correct."""
@@ -613,17 +623,24 @@ def search_quote_history(search_terms: List[str], limit: int = 5) -> List[Dict]:
 def run_test_scenarios():
     
     print("Initializing Database...")
-    init_database()
+    init_database(db_engine)
+
+   
     try:
         quote_requests_sample = pd.read_csv("quote_requests_sample.csv")
+       
+        
         quote_requests_sample["request_date"] = pd.to_datetime(
             quote_requests_sample["request_date"], format="%m/%d/%y", errors="coerce"
         )
         quote_requests_sample.dropna(subset=["request_date"], inplace=True)
         quote_requests_sample = quote_requests_sample.sort_values("request_date")
+
     except Exception as e:
         print(f"FATAL: Error loading test data: {e}")
         return
+
+
 
     # Get initial state
     initial_date = quote_requests_sample["request_date"].min().strftime("%Y-%m-%d")
@@ -661,6 +678,7 @@ def run_test_scenarios():
         ############
 
         # response = call_your_multi_agent_system(request_with_date)
+        response = []
 
         # Update state
         report = generate_financial_report(request_date)
