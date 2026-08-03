@@ -1,7 +1,7 @@
 [project]
-name = "course4-beavers-choice"
+name = "Udacity Agentic AI Course 4 - Beavers Choice"
 version = "0.1.0"
-description = "Add your description here"
+description = "Multi Agent order management system"
 readme = "README.md"
 authors = [
     { name = "Christian Rijke", email = "hello@christianrijke.de" }
