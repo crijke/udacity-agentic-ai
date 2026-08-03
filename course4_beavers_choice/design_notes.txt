@@ -1,0 +1,114 @@
+MUNDER DIFFLIN MULTI-AGENT SYSTEM — DESIGN NOTES
+=================================================
+
+Framework: pydantic-ai (OpenAIChatModel via the Vocareum OpenAI-compatible
+proxy, gpt-4o-mini, temperature 0).
+
+I decided to implement as much logic as possible deterministically, leaving only
+read non-deterministic work to LLM judgement. This includes
+
+- extracting orders from natural language request and mapping to catalog items
+- applying custom bulk discount based on historical data and a base set of bulk discount rules
+- writing customer replies
+
+the rest is calculated in code:
+
+- calculating quotes
+- deciding what and how much to restock
+- recording restock and order transactions
+
+
+Agents
+-----------------------------------------------
+ORCHESTRATOR
+  Manages the fixed sequence and writes the final customer reply.
+  Tools: assess_inventory -> generate_quote -> finalize_order.
+  Each tool runs a sub-agent; structured data between steps is carried in a
+  Python-side context dict, so the LLM never has to copy JSON verbatim
+  between tool calls (a classic mangling failure mode). Agents still
+  communicate via text (JSON), as the project requires.
+
+INVENTORY AGENT (LLM work: parsing + fuzzy catalog matching)
+  A pure parser/matcher with NO tools: it extracts every requested item +
+  quantity, maps each to an exact catalog name (or null if nothing reasonably
+  matches) and extracts the needed-by date. Structured output: ParsedRequest.
+  The orchestrator's assess_inventory step then runs check_item_fulfillment
+  deterministically over every matched item. (Earlier iterations let this
+  agent drive the tool itself; gpt-4o-mini would occasionally loop on tool
+  calls until it hit usage limits — removing the tool removed the failure
+  mode entirely.)
+
+QUOTING AGENT (LLM work: discount judgment + customer-facing explanation)
+  Calls calculate_quote (authoritative line prices + subtotal), then
+  find_similar_quotes to look for discount precedent (similar customer,
+  event or product), then chooses a discount percent — base rule from its
+  prompt (500+ units -> 5%, 1000+ -> 10%), deviation allowed on precedent,
+  hard cap enforced in code — and calls apply_discount for the final
+  rounded total. Structured output: QuoteResult (line items, percent,
+  reason, total). generate_quote then re-derives the total in Python from
+  the chosen percent, so a mistranscribed number can never reach the books.
+
+ORDERING AGENT (LLM work: none to speak of — thin executor)
+  Calls finalize_sale with the quoted items/total. Returns a factual
+  summary. (Proactive restocking is NOT this agent's job — see below.)
+
+Deterministic tools and the policies they encode
+------------------------------------------------
+check_item_fulfillment(item, qty, request_date, needed_by)
+  Stock via get_stock_level. If short: restock qty = shortfall +
+  min_stock_level (buffer), supplier delivery date via
+  get_supplier_delivery_date, affordability via get_cash_balance.
+  Fulfillable = restock arrives by needed_by AND cash covers it.
+
+calculate_quote(line_items, request_date)
+  Prices from the inventory table: per-line totals + undiscounted subtotal.
+  Reports the base-rule discount percent (500+ units -> 5%, 1000+ -> 10%)
+  as a suggestion only.
+
+apply_discount(subtotal, discount_percent)
+  Applies the quoting agent's chosen percent: clamps it to 0..15%, computes
+  the total, and rounds DOWN to a whole dollar (never up, so the customer
+  is never overcharged). Its total_amount is final.
+
+finalize_sale(line_items, total, request_date, needed_by)
+  All-or-nothing. Re-validates availability as of the needed-by date (so
+  already-inbound stock counts), places any restock-to-fulfill orders, then
+  records one 'sales' transaction per item with the discounted total
+  allocated pro-rata. Refuses if the supplier cannot deliver in time or cash
+  is insufficient.
+
+restock_low_inventory(request_date)
+  Proactive: any item whose projected stock (14-day horizon, including
+  inbound orders) is below min_stock_level is topped up to 2x
+  min_stock_level, cash permitting. Called deterministically in Python at
+  the end of process_quote_request on EVERY request — independent of
+  whether a sale was made — so min_stock_level is always enforced. Safe to
+  repeat: inbound orders are delivery-dated, so the projection counts them
+  and no double-ordering occurs.
+
+Transaction dating policy
+-------------------------
+Sales are recorded on the request date (cash in now). Restocks that cover an
+immediate sale are booked on the same request date, so both sides of the deal
+hit the ledger together and stock never goes negative — feasibility (supplier
+delivery date vs. the customer's deadline) is still enforced before the sale
+is accepted. Proactive top-up restocks are instead dated at the SUPPLIER
+DELIVERY DATE: get_all_inventory/get_stock_level count any transaction dated
+<= as_of_date, so delivery-dating means pipeline stock (and its cash outflow)
+materializes when goods actually arrive rather than instantly.
+
+Catalog policy
+--------------
+Only items present in the seeded inventory table (18 of the 46 paper_supplies
+items) are sellable. Requests for anything else are either substituted with a
+reasonable catalog item (same kind of product) or politely declined.
+Reams are converted at 500 sheets per ream.
+
+Workflow diagram
+----------------
+See workflow_diagram.md (Mermaid source; rendered in any Markdown viewer).
+
+Evaluation
+----------
+run_test_scenarios() replays quote_requests_sample.csv (20 requests,
+2025-04-01..). Results are written to test_results.csv.
