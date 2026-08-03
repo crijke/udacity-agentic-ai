@@ -1,5 +1,5 @@
 [project]
-name = "Udacity Agentic AI Course 4 - Beavers Choice"
+name = "course4-beavers-choice"
 version = "0.1.0"
 description = "Multi Agent order management system"
 readme = "README.md"
