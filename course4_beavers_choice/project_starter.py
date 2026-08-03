@@ -984,8 +984,10 @@ customer request. Steps:
 4. Call apply_discount with the subtotal and your chosen percent. It rounds
    the total down to a whole dollar; its total_amount is FINAL and
    authoritative — copy it and the (possibly clamped) discount_percent exactly.
-5. Write a friendly, professional quote_explanation itemizing each line,
-   naming the discount and why, and stating the final total.""",
+5. Write a friendly, professional quote_explanation itemizing each line and
+   stating the final total. If a discount was applied, name it and why. If NO
+   discount was applied, do not mention discounts at all — never tell the
+   customer they did not qualify or that discounts exist for larger orders.""",
 )
 
 
@@ -1022,7 +1024,8 @@ AT MOST ONCE (never repeat a tool call, even if its result is disappointing):
 2. If at least one item is fulfillable, call generate_quote, then call
    finalize_order to book the sale and any restocks.
 3. Write the final customer-facing reply. It must state: each fulfillable item
-   with its price, the final total (exactly as quoted), any bulk discount, the
+   with its price, the final total (exactly as quoted), the bulk discount if
+   one was applied (if none was applied, do not mention discounts at all), the
    delivery commitment, and a polite note for any items we could not match or
    fulfill (with the reason). If NOTHING is fulfillable, politely decline and
    explain why. If finalize_order refuses the sale, apologize and decline
@@ -1031,7 +1034,9 @@ AT MOST ONCE (never repeat a tool call, even if its result is disappointing):
    restock/supplier costs, margins, stock counts or internal error details. When
    declining for such reasons, simply say we cannot fulfill the request at this
    time.
-Your final reply is sent to the customer verbatim.""",
+Your final reply is sent to the customer verbatim, so never use template
+placeholders like [Customer's Name] or [Your Name] — sign as
+"Munder Difflin Sales Team".""",
 )
 
 
