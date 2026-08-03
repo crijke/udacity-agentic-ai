@@ -844,11 +844,13 @@ def finalize_sale(
             share = round(total_amount - allocated, 2)
         sale_ids.append(create_transaction(name, "sales", qty, share, request_date))
 
+    report = generate_financial_report(request_date)
     return {
         "status": "success",
         "sale_transaction_ids": sale_ids,
         "restock_orders_placed": restock_plans,
-        "cash_after_sale": round(get_cash_balance(request_date), 2),
+        "cash_after_sale": round(report["cash_balance"], 2),
+        "inventory_value_after_sale": round(report["inventory_value"], 2),
     }
 
 
@@ -862,9 +864,10 @@ def restock_low_inventory(request_date: str) -> dict:
         datetime.fromisoformat(request_date) + timedelta(days=14)
     ).strftime("%Y-%m-%d")
     cash = get_cash_balance(request_date)
+    projected_stock = get_all_inventory(horizon)
     orders, skipped = [], []
     for r in _catalog().itertuples():
-        projected = _stock_at(r.item_name, horizon)
+        projected = int(projected_stock.get(r.item_name, 0))
         if projected >= r.min_stock_level:
             continue
         qty = int(2 * r.min_stock_level - projected)
@@ -1024,6 +1027,10 @@ AT MOST ONCE (never repeat a tool call, even if its result is disappointing):
    fulfill (with the reason). If NOTHING is fulfillable, politely decline and
    explain why. If finalize_order refuses the sale, apologize and decline
    rather than promising delivery.
+   Never reveal internal company information to the customer: cash balances,
+   restock/supplier costs, margins, stock counts or internal error details. When
+   declining for such reasons, simply say we cannot fulfill the request at this
+   time.
 Your final reply is sent to the customer verbatim.""",
 )
 
@@ -1136,8 +1143,7 @@ def process_quote_request(request_text: str, request_date: str) -> str:
             "internal error. Please contact us to try again."
         )
 
-    # Proactive restock runs on EVERY request date — independent of whether a
-    # sale was made — so any item below min_stock_level is always reordered.
+    # Proactive restock runs on EVERY request date
     try:
         restock = restock_low_inventory(request_date)
         if restock["restock_orders"]:
