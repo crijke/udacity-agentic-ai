@@ -127,17 +127,20 @@ written to test_results.csv.
 Results discussion (see test_results.csv):
 - All 20 requests were processed end-to-end; no request crashed the run or
   corrupted downstream state.
-- The cash balance changed on 18 of the 20 requests, reflecting booked
+- The cash balance changed on 17 of the 20 requests, reflecting booked
   sales, the stock purchases they triggered, and proactive restocks — cash
   even moved on some fully-declined requests, showing the min-stock top-up
   runs independently of sales (the rubric minimum is 3 changes).
-- 17 requests were fulfilled (fully or partially) with an itemized quote
+- 16 requests were fulfilled (fully or partially) with an itemized quote
   and a booked sale; bulk discounts were applied where quantities warranted
   and explained in the customer reply, including precedent-based discounts
   (e.g. 10% granted on conference/exhibition orders citing similar past
   quotes).
-- 3 requests (ids 13, 15, 18) were declined in full because required
-  restocks could not arrive before the customer's deadline.
+- 4 requests were not fulfilled: 13, 15 and 18 were declined because
+  required restocks could not arrive before the customer's deadline, and 17
+  failed on an internal item-name mismatch (since hardened: quoted line
+  items are now taken deterministically from the assessment instead of the
+  LLM's copy).
 - Not every request was fulfilled: replies decline (fully or per-item) with
   a stated reason — the item is not something we sell (e.g. balloons), the
   supplier cannot deliver before the customer's deadline, or stock/cash

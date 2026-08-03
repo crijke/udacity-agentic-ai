@@ -1098,9 +1098,12 @@ async def generate_quote() -> str:
     )
     result = await quoting_agent.run(prompt, usage_limits=SUB_AGENT_LIMITS)
     quote = result.output
+    # Guardrail: the line items are already known deterministically
+    quote.line_items = [
+        LineItem(item_name=f["item_name"], quantity=f["quantity"]) for f in fulfillable
+    ]
     # Guardrail: re-derive the authoritative total from the agent's chosen
-    # discount percent, so the booked amount always matches deterministic
-    # pricing + rounding policy even if the agent mistranscribed a number.
+    # discount percent, not from the agent's possibly-mangled total_amount field.
     priced = calculate_quote(quote.line_items, _ctx["request_date"])
     if "error" not in priced:
         check = apply_discount(priced["subtotal"], quote.discount_percent)
